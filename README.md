@@ -64,7 +64,7 @@ Deploy the repository directly to **GitHub Pages**, **Netlify**, or **Cloudflare
 You can also use the GitHub hosted version at https://jamin-software-foundation.github.io/sty2loops instead of hosting it locally.
 
 
-## Output Directory Layout (`USER_MODELING.zip`)
+## Output Directory Layout (`ketron_styles.zip`)
 
 For a style named `MYSTYLE.sty` at `105 BPM` containing Variations A–D, the exported archive produces:
 
