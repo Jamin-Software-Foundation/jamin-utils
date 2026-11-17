@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Yamaha .STY → Audio Loop Converter</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    .card { border: 1px solid #ddd; padding: 1.2rem; border-radius: 8px; margin-bottom: 1rem; background: #fafafa; }
+    button { padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; border-radius: 6px; border: none; background: #005fb8; color: white; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    progress { width: 100%; height: 22px; margin-top: 0.5rem; }
+    pre { background: #181818; color: #d4d4d4; padding: 1rem; height: 200px; overflow-y: auto; font-size: 0.82rem; border-radius: 6px; }
+    .preview-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+    select { padding: 0.45rem; font-size: 0.95rem; flex: 1; }
+  </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "spessasynth_core": "./spessasynth/spessasynth_core.js",
+            "spessasynth_lib": "./spessasynth/spessasynth_lib.js",			
+            "fflate": "./spessasynth/fflate.js",
+            "stb-vorbis": "./spessasynth/stb-vorbis.js"
+        }
+    }
+    </script>	  
+</head>
+<body>
+  <h1>Yamaha .STY → Audio Loop Converter</h1>
+
+  <div class="card">
+    <label><strong>1. Load SoundFont (.sf2):</strong></label><br />
+    <input type="file" id="sf2Input" accept=".sf2" />
+  </div>
+
+  <div class="card">
+    <label><strong>2. Load Yamaha Styles (.sty / .prs) [Batch Supported]:</strong></label><br />
+    <input type="file" id="styInput" accept=".sty,.prs" multiple />
+  </div>
+  
+  <div class="card">
+    <strong>3. Output Mix Levels (Pre-Render Gain):</strong>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 0.7rem;">
+      <div>
+        <label for="drumGainSlider" style="font-size: 0.85rem;">
+          Live Drums: <strong><span id="drumGainVal">100</span>%</strong>
+        </label><br />
+        <input type="range" id="drumGainSlider" min="0" max="200" value="100" style="width: 100%;" />
+      </div>
+      <div>
+        <label for="bassGainSlider" style="font-size: 0.85rem;">
+          RealBass: <strong><span id="bassGainVal">100</span>%</strong>
+        </label><br />
+        <input type="range" id="bassGainSlider" min="0" max="200" value="100" style="width: 100%;" />
+      </div>
+      <div>
+        <label for="chordGainSlider" style="font-size: 0.85rem;">
+          RealChord: <strong><span id="chordGainVal">100</span>%</strong>
+        </label><br />
+        <input type="range" id="chordGainSlider" min="0" max="200" value="100" style="width: 100%;" />
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong>4. Input Per-Channel MIDI Volume Mixer (Ch 1–16):</strong>
+      <button type="button" id="resetChMixBtn" style="padding: 0.3rem 0.7rem; font-size: 0.8rem; background: #555;">
+        Reset All to 100%
+      </button>
+    </div>
+    <div id="channelMixerGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-top: 0.75rem;">
+      <!-- Populated dynamically by main.js -->
+    </div>
+  </div>  
+  
+
+  <div class="card">
+    <button id="convertBtn" disabled>Convert Batch</button>
+    <button id="downloadBtn" disabled style="background:#107c41;">Download USER_MODELING.zip</button>
+    <p id="statusText">Select an .sf2 SoundFont and one or more .sty files.</p>
+    <progress id="progressBar" value="0" max="100"></progress>
+  </div>
+
+  <div class="card">
+    <strong>5. Audition Rendered Ketron Loops (Seamless Loop Preview):</strong>
+    <div class="preview-row">
+      <select id="previewSelect" disabled>
+        <option value="">-- Convert styles to preview loops --</option>
+      </select>
+      <button id="playPreviewBtn" disabled>Play Loop</button>
+      <button id="stopPreviewBtn" disabled style="background:#c42b1c;">Stop</button>
+    </div>
+  </div>
+
+  <pre id="log"></pre>
+  <script src="./js/kst_writer.js"></script>	   
+  <script src="./js/jszip.min.js"></script>	   
+  <script type="module" src="./js/main.js"></script>  
+</body>
+</html>

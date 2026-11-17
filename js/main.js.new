@@ -1,0 +1,188 @@
+import { BasicMIDI } from "spessasynth_core";
+import {
+  SAMPLE_RATE,
+  CHROMATIC_NOTES,
+  KETRON_REALBASS_TYPES,
+  KETRON_REALCHORD_TYPES
+} from "./constants.js";
+import { parseYamahaSty } from "./styParser.js";
+import { extractSections, buildSectionMidi } from "./midiProcessor.js";
+import { RenderWorkerPool } from "./workerPool.js";
+import { PreviewPlayer } from "./previewPlayer.js";
+
+const sf2Input = document.getElementById("sf2Input");
+const styInput = document.getElementById("styInput");
+const convertBtn = document.getElementById("convertBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const statusText = document.getElementById("statusText");
+const progressBar = document.getElementById("progressBar");
+const logBox = document.getElementById("log");
+
+const previewPlayer = new PreviewPlayer(
+  document.getElementById("previewSelect"),
+  document.getElementById("playPreviewBtn"),
+  document.getElementById("stopPreviewBtn")
+);
+
+const workerPool = new RenderWorkerPool();
+let generatedZipBlob = null;
+
+function log(msg) {
+  logBox.textContent += msg + "\n";
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function checkReady() {
+  convertBtn.disabled = !(sf2Input.files.length > 0 && styInput.files.length > 0);
+}
+sf2Input.addEventListener("change", checkReady);
+styInput.addEventListener("change", checkReady);
+
+function resolveVariationSources(sections, mainSec) {
+  const introPref = {
+    ARRA: new Array("INT1", "INT2", "INT3"),
+    ARRB: new Array("INT2", "INT1", "INT3"),
+    ARRC: new Array("INT3", "INT2", "INT1"),
+    ARRD: new Array("INT3", "INT2", "INT1")
+  };
+  const endingPref = {
+    ARRA: new Array("END1", "END2", "END3"),
+    ARRB: new Array("END2", "END1", "END3"),
+    ARRC: new Array("END3", "END2", "END1"),
+    ARRD: new Array("END3", "END2", "END1")
+  };
+
+  const findByPref = (prefs) => {
+    for (const name of prefs) {
+      const match = sections.find(s => s.ketronName === name);
+      if (match) return match;
+    }
+    return mainSec;
+  };
+
+  return {
+    MAIN: mainSec,
+    INTRO: findByPref(introPref[mainSec.ketronName] || new Array("INT1")),
+    ENDING: findByPref(endingPref[mainSec.ketronName] || new Array("END1"))
+  };
+}
+
+convertBtn.addEventListener("click", async () => {
+  convertBtn.disabled = true;
+  downloadBtn.disabled = true;
+  previewPlayer.clear();
+
+  const zip = new JSZip();
+  const sf2Buffer = await sf2Input.files.item(0).arrayBuffer();
+  const styFiles = Array.from(styInput.files);
+
+  statusText.textContent = `Initializing ${workerPool.workerCount} audio worker threads...`;
+  log(`Spinning up ${workerPool.workerCount} parallel render workers...`);
+  await workerPool.init(sf2Buffer);
+  log("WWWWWWWW");
+
+  progressBar.max = styFiles.length;
+  progressBar.value = 0;
+
+  const VARIATION_NAMES = new Array("ARRA", "ARRB", "ARRC", "ARRD");
+
+  for (let i = 0; i < styFiles.length; i++) {
+    const file = styFiles.at(i);
+    const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+    statusText.textContent = `Converting ${file.name} (${i + 1}/${styFiles.length})...`;
+    log(`=== Parsing ${file.name} ===`);
+
+    const styBuffer = await file.arrayBuffer();
+    const { standardMidiBuffer, channelRules } = parseYamahaSty(styBuffer);
+    const baseMidi = BasicMIDI.fromArrayBuffer(standardMidiBuffer);
+
+    const firstTempo = baseMidi.tempoChanges?.at(0)?.tempo;
+    const bpm = Math.round(firstTempo || 120);
+    const ppq = baseMidi.timeDivision || 480;
+    const sections = extractSections(baseMidi, log);
+
+    log(`Detected BPM: ${bpm} | PPQ: ${ppq} | Sections: ${sections.length}`);
+
+    const renderTasks = new Array();
+
+    const queueClip = (midiSeq, exactSamples, zipPath) => {
+      if (midiSeq.lastVoiceEventTick <= 0 || exactSamples <= 0) return;
+      const promise = workerPool.renderClip(midiSeq, exactSamples).then((wavBuffer) => {
+        zip.file(zipPath, wavBuffer);
+        previewPlayer.addLoop(zipPath, wavBuffer);
+      });
+      renderTasks.push(promise);
+    };
+
+    // A. Live_Drums
+    const drumFolderName = `${cleanName}_${bpm}`;
+    for (const sec of sections) {
+      const exactSamples = Math.round((60 / bpm) * ((sec.endTick - sec.startTick) / ppq) * SAMPLE_RATE);
+      const drumMidi = buildSectionMidi(baseMidi, sec, "DRUM", channelRules, null);
+      queueClip(drumMidi, exactSamples, `USER_MODELING/Live_Drums/${drumFolderName}/${sec.ketronName}.wav`);
+    }
+
+    // B & C. RealBass & RealChord per variation (ARRA..ARRD)
+    const presentVariations = sections.filter(s => VARIATION_NAMES.includes(s.ketronName));
+
+    for (const varSec of presentVariations) {
+      const varFolderName = `${cleanName} ${varSec.ketronName}_${bpm}`;
+      const sourceSecByGroup = resolveVariationSources(sections, varSec);
+
+      for (const [prefix, cfg] of Object.entries(KETRON_REALBASS_TYPES)) {
+        const srcSec = sourceSecByGroup[cfg.sourceGroup];
+        if (!srcSec) continue;
+        const exactSamples = Math.round((60 / bpm) * ((srcSec.endTick - srcSec.startTick) / ppq) * SAMPLE_RATE);
+
+        for (let rootIdx = 0; rootIdx < 12; rootIdx++) {
+          const noteName = CHROMATIC_NOTES.at(rootIdx);
+          const bassMidi = buildSectionMidi(baseMidi, srcSec, "BASS", channelRules, cfg.intervals, rootIdx, true);
+          queueClip(bassMidi, exactSamples, `USER_MODELING/RealBass/${varFolderName}/${prefix}_${noteName}.wav`);
+        }
+      }
+
+      for (const [prefix, cfg] of Object.entries(KETRON_REALCHORD_TYPES)) {
+        const srcSec = sourceSecByGroup[cfg.sourceGroup];
+        if (!srcSec) continue;
+        const exactSamples = Math.round((60 / bpm) * ((srcSec.endTick - srcSec.startTick) / ppq) * SAMPLE_RATE);
+
+        for (let rootIdx = 0; rootIdx < 12; rootIdx++) {
+          const noteName = CHROMATIC_NOTES.at(rootIdx);
+          const chordMidi = buildSectionMidi(baseMidi, srcSec, "CHORD", channelRules, cfg.intervals, rootIdx, false);
+          queueClip(chordMidi, exactSamples, `USER_MODELING/RealChord/${varFolderName}/${prefix}_${noteName}.wav`);
+        }
+      }
+    }
+
+    log(`  ⏳ Rendering ${renderTasks.length} WAV loops across ${workerPool.workerCount} threads...`);
+    await Promise.all(renderTasks);
+    log(`  ✔ Completed ${file.name}`);
+
+    // TODO: Plug in your existing KST style file generator here and add to zip:
+    // zip.file(`USER_STYLE/${cleanName}.kst`, kstBuffer);
+
+	const kstName = "USER_STYLE/Ballad/" + cleanName.replaceAll("-", " ") + ".KST";
+	const kstData = await buildKstFile(cleanName, cleanName, presentVariations.length, cleanName, presentVariations.length, bpm);
+	zip.file(kstName, kstData);  
+
+    progressBar.value = i + 1;
+  }
+
+  workerPool.terminate();
+
+  statusText.textContent = "Building USER_MODELING.zip...";
+  generatedZipBlob = await zip.generateAsync({ type: "blob" });
+
+  statusText.textContent = "Conversion complete! Preview loops below or download ZIP.";
+  downloadBtn.disabled = false;
+  convertBtn.disabled = false;
+  previewPlayer.enable();
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!generatedZipBlob) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(generatedZipBlob);
+  a.download = "USER_MODELING.zip";
+  a.click();
+});
