@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="./favicon.png">   
+  <title>MIDI to Ketron Audio Style Extractor</title>
+	<style>
+	body { font-family: system-ui, sans-serif; max-width: 960px; margin: 20px auto; padding: 0 16px; background: #181a1f; color: #e4e6eb; }
+	.toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #242730; padding: 14px; border-radius: 8px; margin-bottom: 16px; }
+	.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+	.tab { padding: 6px 14px; border: 1px solid #3e4452; background: #242730; color: #ccc; border-radius: 6px; cursor: pointer; }
+	.tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+	.card { display: flex; justify-content: space-between; align-items: center; background: #242730; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #3b82f6; }
+	.card.playing { border-left-color: #10b981; background: #1f2d2a; }
+	.meta { font-size: 0.85rem; color: #9ca3af; margin-top: 4px; }
+	.badge { display: inline-block; padding: 2px 6px; font-size: 0.75rem; border-radius: 4px; background: #374151; margin-right: 6px; }
+	.badge.single { background: #065f46; color: #a7f3d0; }
+	.actions { display: flex; gap: 10px; align-items: center; }
+	button, select { padding: 6px 12px; border-radius: 6px; border: 1px solid #4b5563; background: #1f2937; color: #fff; cursor: pointer; }
+	button.primary { background: #10b981; border-color: #10b981; color: #000; font-weight: 600; }
+	</style>
+	<script type="importmap">
+	{
+		"imports": {
+			"spessasynth_core": "./spessasynth/spessasynth_core.js",
+			"spessasynth_lib": "./spessasynth/spessasynth_lib.js",			
+			"fflate": "./spessasynth/fflate.js",
+			"stb-vorbis": "./spessasynth/stb-vorbis.js"
+		}
+	}
+	</script>	  
+</head>
+<body>
+  <h2>MIDI Song → Ketron Event Loop Extractor</h2>
+
+  <div class="toolbar">
+    <label>1. SF2 SoundFont: <input type="file" id="sf2Input" accept=".sf2"></label>
+    <label>2. MIDI Song: <input type="file" id="midiInput" accept=".mid,.midi"></label>
+    <label><input type="checkbox" id="normToggle" checked> Preview Normalized in C</label>
+    <label>Target BPM: <input type="number" id="bpmInput" min="40" max="260" step="1" style="width: 64px; padding: 5px; border-radius: 6px; border: 1px solid #4b5563; background: #1f2937; color: #fff;"></label>	
+    <button id="stopBtn">Stop Preview</button>
+    <button id="exportBtn" class="primary">Render Assigned Slots to WAV</button>
+  </div>
+
+  <div id="statusBar" class="meta" style="margin-bottom: 12px;">Load an SF2 and a MIDI file to begin.</div>
+
+  <div class="tabs" id="roleTabs">
+    <button class="tab active" data-role="all">All Roles</button>
+    <button class="tab" data-role="drum">Drums</button>
+    <button class="tab" data-role="fill">Fills</button>
+    <button class="tab" data-role="bass">Bass</button>
+    <button class="tab" data-role="guitar">Guitar</button>
+    <button class="tab" data-role="chord">Keys / Chords</button>
+  </div>
+
+  <div class="tabs" id="lengthTabs">
+    <button class="tab active" data-length="all">All Lengths</button>
+    <button class="tab" data-length="1">1 Bar</button>
+    <button class="tab" data-length="2">2 Bars</button>
+    <button class="tab" data-length="4">4 Bars</button>
+    <button class="tab" data-length="8">8 Bars</button>
+  </div>
+
+
+  <div id="candidateList"></div>
+
+  <!-- Offline UMD dependencies -->
+  <script src="./js/midi.min.js"></script>
+  <script src="./js/tonal.min.js"></script>
+  <script src="./js/jszip.min.js"></script>  
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
