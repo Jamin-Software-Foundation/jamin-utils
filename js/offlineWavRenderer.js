@@ -6,13 +6,21 @@ const BLOCK_SIZE = 128; // Standard synthesis render quantum
 
 
 export async function renderLoopToWavBlob(soundBank, analysis, candidate, options = {}) {
-  const { passes = 2, normalizeToC = true, overrideBpm = null } = options;
+  const {
+    passes = 2,
+    normalizeToC = true,
+    overrideBpm = null,
+    chordType = null,
+    targetRootOffset = 0
+  } = options;
 
   const schedule = buildSampleSchedule(analysis, candidate, {
     sampleRate: SAMPLE_RATE,
     normalizeToC,
     passes,
-    overrideBpm
+    overrideBpm,
+    chordType,
+    targetRootOffset
   });
 
   const offlineProcessor = new SpessaSynthProcessor(SAMPLE_RATE);

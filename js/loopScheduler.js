@@ -1,3 +1,5 @@
+import { mapNoteToKetronChord } from './ketronChordTransposer.js';
+
 /**
  * Builds a sample-indexed event schedule for a loop candidate at a given sampleRate.
  * Works identically for live preview and offline WAV rendering with SpessaSynthProcessor.
@@ -8,7 +10,9 @@ export function buildSampleSchedule(analysis, candidate, options = {}) {
     normalizeToC = true,
     passes = 1,
     overrideBpm = null,
-    drumNoteFilter = null
+    drumNoteFilter = null,
+    chordType = null,        // 'Maj' | 'Min' | 'Sus4' | '7th' (when rendering Ketron matrix)
+    targetRootOffset = 0     // 0..11 semitones from C
   } = options;
 
   const bpm = overrideBpm || analysis.bpm || 120;
@@ -61,10 +65,23 @@ export function buildSampleSchedule(analysis, candidate, options = {}) {
           startSample + Math.max(1, Math.round(durTicks * samplesPerTick))
         );
 
-        let finalMidi = note.midi + transpose;
+        let finalMidi = note.midi;
         if (!candidate.isDrum) {
-          while (finalMidi < 36) finalMidi += 12;
-          while (finalMidi > 96) finalMidi -= 12;
+          if (chordType) {
+            // Ketron chromatic chord matrix mode
+            finalMidi = mapNoteToKetronChord(
+              note.midi,
+              transpose,
+              chordType,
+              targetRootOffset,
+              candidate.role === 'bass'
+            );
+          } else {
+            // Standard preview mode
+            finalMidi = note.midi + transpose;
+            while (finalMidi < 36) finalMidi += 12;
+            while (finalMidi > 96) finalMidi -= 12;
+          }
         }
 
         const vel = Math.max(1, Math.min(127, Math.round((note.velocity || 0.8) * 127)));
@@ -94,3 +111,66 @@ export function dispatchEventsInRange(processor, events, startSample, endSample)
   }
 
 }
+
+/**
+ * Merges multiple candidates (e.g. Drum + Bass + Chord assigned to MAIN_A)
+ * into a single synchronized multi-channel sample schedule.
+ */
+export function buildMultiTrackSchedule(analysis, candidates, options = {}) {
+  const {
+    sampleRate = 44100,
+    normalizeToC = true,
+    overrideBpm = null,
+    chordType = null,
+    targetRootOffset = 0
+  } = options;
+
+  if (!candidates || candidates.length === 0) return null;
+
+  // Determine the master loop length in samples (longest track in the group)
+  const individualSchedules = candidates.map((cand, idx) => {
+    // Assign isolated MIDI channels: Ch 9 (10) for drums, Ch 1 for bass, Ch 0/2/3... for chords
+    const assignedChannel = cand.isDrum ? 9 : (cand.role === 'bass' ? 1 : (idx === 0 ? 0 : idx + 1));
+
+    const sched = buildSampleSchedule(analysis, cand, {
+      sampleRate,
+      normalizeToC,
+      passes: 1,
+      overrideBpm,
+      chordType,
+      targetRootOffset
+    });
+
+    // Remap events to the isolated channel
+    const channelEvents = sched.events.map(ev => ({ ...ev, channel: assignedChannel }));
+    return { singlePassSamples: sched.singlePassSamples, events: channelEvents };
+  });
+
+  const masterTotalSamples = Math.max(...individualSchedules.map(s => s.singlePassSamples));
+  const mergedEvents = Array.of();
+
+  // Tile shorter loops (e.g. 1-bar drum loop) across the full master loop (e.g. 4-bar chord loop)
+  for (const sched of individualSchedules) {
+    const repeats = Math.max(1, Math.round(masterTotalSamples / sched.singlePassSamples));
+    for (let r = 0; r < repeats; r++) {
+      const offset = r * sched.singlePassSamples;
+      for (const ev of sched.events) {
+        const shiftedSample = ev.sample + offset;
+        if (shiftedSample < masterTotalSamples) {
+          // Only send bank/program CC on the first repeat (r === 0)
+          if (r > 0 && (ev.type === 'cc' || ev.type === 'program')) continue;
+          mergedEvents.push({ ...ev, sample: shiftedSample });
+        }
+      }
+    }
+  }
+
+  mergedEvents.sort((a, b) => (a.sample - b.sample) || (a.type === 'noteOff' ? -1 : 1));
+
+  return {
+    events: mergedEvents,
+    singlePassSamples: masterTotalSamples,
+    totalSamples: masterTotalSamples
+  };
+}
+

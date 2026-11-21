@@ -6,11 +6,11 @@ const { Midi } = window;
 
 export function analyzeMidiForLoops(arrayBuffer, options = {}) {
   const {
-    loopLengths = Array.of(1, 2, 4, 8),
+    loopLengths = Array.of(1, 2, 4, 8, 16),
     minOccurrences = 2,
     minNotesPerBar = 3,
     quantizeSteps = 16,
-    similarityThreshold = 0.80 // Allow up to 20% variation (e.g., pickup notes/ghost hits) on 4 & 8-bar loops
+    similarityThreshold = 0.80
   } = options;
 
   const midi = new Midi(arrayBuffer);
