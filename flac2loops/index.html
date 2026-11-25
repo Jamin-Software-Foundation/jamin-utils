@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="./favicon.png">    
+  <title>Acoustic Guitar Loop Extractor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Acoustic Loop Scanner & Extractor</h2>
+    <input type="file" id="audioInput" accept="audio/*">
+    <div id="status" class="status">Upload your audio clip and set the exact BPM.</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 1rem;">
+      <label>BPM: <input type="number" id="bpmInput" value="72" min="40" max="240" step="0.1" style="width: 70px; padding: 4px;"></label>
+      <label>Trim: <strong id="trimVal">0 ms</strong> <input type="range" id="trimSlider" min="-150" max="150" value="0" step="1"></label>
+      <label>ZIP Name: <input type="text" id="zipNameInput" value="guitar_loops" placeholder="filename" style="width: 140px; padding: 4px;"></label>
+      <button id="extractBtn" disabled>Extract Loops</button>
+      <button id="selectAllBtn" disabled style="background:#2196f3;">Select All</button>
+      <button id="zipBtn" disabled style="background:#ff9800; color:#111; font-weight:bold;">Download Selected (.zip)</button>
+    </div>
+    <div id="grid" class="grid"></div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

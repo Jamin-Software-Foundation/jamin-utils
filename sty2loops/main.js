@@ -1,10 +1,10 @@
 import { BasicMIDI } from "spessasynth_core";
-import { SAMPLE_RATE, CHROMATIC_NOTES, KETRON_REALBASS_TYPES, KETRON_REALCHORD_TYPES, GM_INSTRUMENTS} from "./constants.js";
+import { SAMPLE_RATE, CHROMATIC_NOTES, KETRON_REALBASS_TYPES, KETRON_REALCHORD_TYPES, GM_INSTRUMENTS} from "/js/constants.js";
 
-import { parseYamahaSty } from "./styParser.js";
-import { extractSections, buildSectionMidi } from "./midiProcessor.js";
-import { renderClipOffline } from "./renderer.js";
-import { PreviewPlayer } from "./previewPlayer.js";
+import { parseYamahaSty } from "/js/styParser.js";
+import { extractSections, buildSectionMidi } from "/js/midiProcessor.js";
+import { renderClipOffline } from "/js/renderer.js";
+import { PreviewPlayer } from "/js/previewPlayer.js";
 
 const drumGainSlider  = document.getElementById("drumGainSlider");
 const bassGainSlider  = document.getElementById("bassGainSlider");
